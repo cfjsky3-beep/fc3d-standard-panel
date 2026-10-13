@@ -77,7 +77,7 @@ function awardLabels(name:string, count:number) {
   }
   if (count > 1 && (name.includes("混合组选") || name.includes("组选和值") || name.includes("组选包胆"))) return ["组三", "组六"];
   if (name.includes("通选")) return ["三星奖", "二星奖"];
-  if (name === "龙虎和") return ["龙、虎", "和"];
+  if (name === "龙虎和") return ["和", "龙、虎"];
   if (name === "梭哈") return ["四条", "葫芦", "顺子", "三条", "两对", "单牌", "一对"];
   if (name === "三星炸金花") return ["豹子", "顺子", "对子", "杂六", "半顺"];
   if (name === "牛牛") return ["牛1、牛3、牛5、牛7、牛9", "牛牛", "牛2、牛4、牛6、牛8", "牛单", "牛小", "牛大", "牛双", "无牛"];

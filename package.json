@@ -10,9 +10,10 @@
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "node --test tests/seed-data.test.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern vercel-dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "build:vercel": "vite build --config vite.vercel.config.ts"
+    "build:vercel": "vite build --config vite.vercel.config.ts",
+    "export:html": "npm run build:vercel && node scripts/export-single-html.mjs 福彩3D标准盘原型.html"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

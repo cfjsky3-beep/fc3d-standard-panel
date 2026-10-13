@@ -63,6 +63,43 @@ function k3SumPropertyAwards() {
 export function standardOdds(game:string,name:string):StandardAward[] {
   const note="独立等概率开奖；含本金、无抽水；未中奖不退本金；按单个基础注计算";
   const one=(award:string,total:number,wins:number,extra="")=>[fairAward(award,total,wins,extra||note)];
+  if(game==="fc3d") {
+    if(name==="定位胆") return one("每一位置的指定号码",10,1);
+    if(name==="龙虎和") return [
+      fairAward("龙",100,45,"指定两位前位大于后位；含本金、无抽水"),
+      fairAward("虎",100,45,"指定两位前位小于后位；含本金、无抽水"),
+      fairAward("和",100,10,"指定两位相同；含本金、无抽水"),
+    ];
+    if(name==="三星一码不定胆") return one("每个指定号码",1000,271,"号码在三位开奖号码中至少出现一次；同号重复出现不重复派奖；含本金、无抽水");
+    if(name==="三星二码不定胆") return one("每组两个不同号码",1000,54,"两个指定号码均在三位开奖号码中出现；含本金、无抽水");
+    if(name==="三星直选和值") return Array.from({length:28},(_,sum)=>({...fairAward(String(sum),1000,1,"选择和值后拆分为对应有序直选基础注；同期开奖最多命中其中一注"),betCount:directSumCombinationCount(sum)}));
+    if(name==="三星直选跨度") return Array.from({length:10},(_,span)=>({...fairAward(String(span),1000,1,"选择跨度后拆分为对应有序直选基础注；同期开奖最多命中其中一注"),betCount:directSpanCombinationCount(span)}));
+    if(name==="三星组选和值") return Array.from({length:26},(_,i)=>i+1).flatMap(sum=>{
+      const p=groupSumComponents(sum); const result:StandardAward[]=[];
+      if(p.group3Bets) result.push({...fairAward(`${sum}·组三`,1000,3,`和值${sum}拆分为组三基础注；含本金、无抽水`),betCount:p.group3Bets});
+      if(p.group6Bets) result.push({...fairAward(`${sum}·组六`,1000,6,`和值${sum}拆分为组六基础注；含本金、无抽水`),betCount:p.group6Bets});
+      return result;
+    });
+    if(name==="三星组选包胆") return Array.from({length:10},(_,digit)=>[
+      {...fairAward(`${digit}·组三`,1000,3,"包胆拆分18注组三；含本金、无抽水"),betCount:18},
+      {...fairAward(`${digit}·组六`,1000,6,"包胆拆分36注组六；含本金、无抽水"),betCount:36},
+    ]).flat();
+    if(name==="三星通选复式" || name==="三星通选单式") return [
+      {award:"三星奖",total:1000,wins:1,exact:"460/1",value:"460.000000",formula:"竞品固定奖级分配",note:"固定号码三位全中；460/20奖级组合整体理论返奖率为100%，奖级分配规则待业务最终确认"},
+      {award:"二星奖",total:1000,wins:27,exact:"20/1",value:"20.000000",formula:"竞品固定奖级分配",note:"固定号码恰好两个位置命中；与三星奖互斥；奖级分配规则待业务最终确认"},
+    ];
+    if(/^(前二|后二)直选和值$/.test(name)) return Array.from({length:19},(_,sum)=>({...fairAward(String(sum),100,1,"选择和值后拆分为对应有序二位直选基础注"),betCount:twoDigitSumCombinationCount(sum)}));
+    if(/^(前二|后二)直选跨度$/.test(name)) return Array.from({length:10},(_,span)=>({...fairAward(String(span),100,1,"选择跨度后拆分为对应有序二位直选基础注"),betCount:twoDigitSpanCombinationCount(span)}));
+    if(/^(前二|后二)组选和值$/.test(name)) return Array.from({length:17},(_,i)=>i+1).map(sum=>({...fairAward(String(sum),100,2,"选择和值后拆分为二位组选基础注"),betCount:twoDigitGroupSumCombinationCount(sum)}));
+    if(/^(前二|后二)组选包胆$/.test(name)) return Array.from({length:10},(_,digit)=>({...fairAward(String(digit),100,2,"每个包胆号码拆分为9个二位组选基础注"),betCount:9}));
+    if(name==="三星组选三复式") return one("每组一重号＋一单号",1000,3);
+    if(name==="三星组选六复式") return one("每组三个不同号码",1000,6);
+    if(name==="三星混合组选") return [fairAward("组三",1000,3,"按输入号码形态判定；含本金、无抽水"),fairAward("组六",1000,6,"按输入号码形态判定；含本金、无抽水")];
+    if(name.startsWith("三星直选")) return one("指定有序三位号码",1000,1);
+    if(/^(前二|后二)直选/.test(name)) return one("指定有序二位号码",100,1);
+    if(/^(前二|后二)组选/.test(name)) return one("指定两个不同号码",100,2);
+    return pending("玩法规则证据不足，不能进入正式研发结算");
+  }
   if(game==="k3") {
     if(name==="和值") return [
       ...[...distribution(6,3,"sum")].sort((a,b)=>a[0]-b[0]).map(([v,w])=>fairAward(String(v),216,w,"三同号参与和值中奖；含本金、无抽水")),

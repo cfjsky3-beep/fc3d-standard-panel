@@ -19,7 +19,7 @@ export function RulesCatalog({ rows }: { rows: RuleRow[] }) {
         <label>查找玩法<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="输入玩法或父级名称" /></label>
         <span role="status">显示 {visible.length} / {records.length} 个子玩法</span>
       </div>
-      <p>逐个列出福彩3D的选号要求、中奖条件、投注示例与开奖号码示例。说明沿用老竞品格式，31个玩法及标准赔率按开云彩票当前配置整理。</p>
+      <p>逐个列出福彩3D的选号要求、中奖条件、投注示例与开奖号码示例。说明沿用老竞品格式，31个玩法按开云彩票当前配置整理；标准赔率按福彩3D等概率结果独立计算。</p>
     </section>
     {incomplete.length>0 && <section className="spec-card rules-pending"><h2>仍需补充原始规则 · {incomplete.length} 项</h2><p>{incomplete.map(r=>r.name).join("、")}。以上玩法保留目录，说明或示例尚不完整，需补充原始材料后确认，不能直接作为结算依据。</p></section>}
     {!visible.length && <section className="spec-card"><p>未找到对应玩法，请更换关键词或切换到“全部”。</p></section>}
@@ -31,7 +31,7 @@ export function RulesCatalog({ rows }: { rows: RuleRow[] }) {
           const confirmedOdds = r.standardOdds.filter(o=>o.value!==null);
           const hasMultipleOdds = new Set(confirmedOdds.map(o=>o.value)).size > 1;
           return <article className="rule-entry" key={r.code}>
-          <header><h3>{r.name}</h3>{r.name==="龙虎和" && <span className="rule-source-badge">开云配置</span>}</header>
+          <header><h3>{r.name}</h3>{r.name==="龙虎和" && <span className="rule-source-badge">规则已核对</span>}</header>
           <p className="rule-description">{r.description}</p>
           <dl><div><dt>投注示例</dt><dd>{r.betExample || "待提供投注示例"}</dd></div><div><dt>示例号码</dt><dd>{r.resultExample || "待提供示例号码"}</dd></div></dl>
           {hasMultipleOdds && <details className="rule-odds"><summary>查看全部标准赔率</summary><div>{confirmedOdds.map(o=><span key={o.award}><b>{o.award.replace("·"," · ")}：{displayStandard(o.value)}</b>{o.betCount && o.betCount>1 ? <small>{o.betCount} 注</small> : null}</span>)}</div></details>}

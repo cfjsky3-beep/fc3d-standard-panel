@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions, jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/label-has-associated-control, no-irregular-whitespace, @next/next/no-img-element */
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -5,7 +6,7 @@ import { sscGroups, sscHelp, positionsFor, oddsText } from "./ssc-data";
 import { directSpanCombinationCount, directSumCombinationCount, displayStandard, groupSumCombinationCount, standardOdds, twoDigitGroupSumCombinationCount, twoDigitSpanCombinationCount, twoDigitSumCombinationCount } from "./standard-odds";
 import { SeedTable } from "./seed-table";
 import { RulesCatalog } from "./rules-catalog";
-import { fc3dGroups, fc3dHelp, fc3dObservedOdds } from "./fc3d-data";
+import { fc3dGroups, fc3dHelp } from "./fc3d-data";
 
 type Game = "ssc" | "k3" | "fc3d";
 type Panel = "double" | "standard";
@@ -48,9 +49,6 @@ function digitPositions(game:Game, menu:string) {
 }
 
 function displayOdds(game: Game, name: string) {
-  const observed = game === "fc3d" ? Object.values(fc3dObservedOdds[name] ?? {}).map(Number).filter(Number.isFinite).sort((a,b)=>a-b) : [];
-  if (observed.length === 1) return displayStandard(String(observed[0]));
-  if (observed.length > 1) return `${displayStandard(String(observed[0]))}～${displayStandard(String(observed.at(-1)!))}`;
   const values = [...new Set(standardOdds(game, name).flatMap((award) => award.value ? [Number(award.value)] : []))].sort((a, b) => a - b);
   if (values.length === 1) return displayStandard(String(values[0]));
   if (values.length > 1) return `${displayStandard(String(values[0]))}～${displayStandard(String(values.at(-1)!))}`;
@@ -58,10 +56,6 @@ function displayOdds(game: Game, name: string) {
 }
 
 export function standardOptionOdds(game: Game, menu: string, option: string) {
-  if (game === "fc3d") {
-    const normalized = option.replace("牛一","牛1").replace("牛二","牛2").replace("牛三","牛3").replace("牛四","牛4").replace("牛五","牛5").replace("牛六","牛6").replace("牛七","牛7").replace("牛八","牛8").replace("牛九","牛9");
-    return Object.entries(fc3dObservedOdds[menu] ?? {}).filter(([award]) => award.split("、").includes(normalized) || award === normalized).map(([,value])=>displayStandard(value)).join("/");
-  }
   const values = standardOdds(game, menu).flatMap(award => award.value && (award.award === option || award.award.startsWith(`${option}·`)) ? [displayStandard(award.value)] : []);
   return values.join("/");
 }
@@ -106,6 +100,14 @@ export function betCountForSelections(menu: string, selected: string[]) {
   if (menu === "三星组选三复式") return selected.length >= 2 ? combinationCount(selected.length,2)*2 : 0;
   if (menu === "三星组选六复式") return selected.length >= 3 ? combinationCount(selected.length,3) : 0;
   if (/^(前二|后二)组选复式$/.test(menu)) return selected.length >= 2 ? combinationCount(selected.length,2) : 0;
+  if (menu === "三星组选包胆") return selected.length * 54;
+  if (menu === "三星组选和值") return selected.reduce((sum,item)=>sum+groupSumCombinationCount(Number(item.slice(item.lastIndexOf("-")+1))),0);
+  if (menu === "三星直选和值") return selected.reduce((sum,item)=>sum+directSumCombinationCount(Number(item.slice(item.lastIndexOf("-")+1))),0);
+  if (menu === "三星直选跨度") return selected.reduce((sum,item)=>sum+directSpanCombinationCount(Number(item.slice(item.lastIndexOf("-")+1))),0);
+  if (/^(前二|后二)直选和值$/.test(menu)) return selected.reduce((sum,item)=>sum+twoDigitSumCombinationCount(Number(item.slice(item.lastIndexOf("-")+1))),0);
+  if (/^(前二|后二)直选跨度$/.test(menu)) return selected.reduce((sum,item)=>sum+twoDigitSpanCombinationCount(Number(item.slice(item.lastIndexOf("-")+1))),0);
+  if (/^(前二|后二)组选和值$/.test(menu)) return selected.reduce((sum,item)=>sum+twoDigitGroupSumCombinationCount(Number(item.slice(item.lastIndexOf("-")+1))),0);
+  if (/^(前二|后二)组选包胆$/.test(menu)) return selected.length * 9;
   if (menu === "三不同号胆拖") {
     const bankers=selected.filter(item=>item.startsWith("胆码-")).length;
     const drags=selected.filter(item=>item.startsWith("拖码-")).length;
@@ -192,6 +194,40 @@ export function quickSelectionValues(labels: string[], action: string) {
 }
 
 export function maximumPayoutMultiplier(game: Game, panel: Panel, menu: string, selected: string[], displayedOdds: string) {
+  if (panel === "standard" && game === "fc3d") {
+    if (!selected.length || betCountForSelections(menu,selected)===0) return null;
+    const byRow=new Map<string,string[]>();
+    for(const item of selected){const cut=item.indexOf("-");const row=item.slice(0,cut),label=item.slice(cut+1);byRow.set(row,[...(byRow.get(row)??[]),label]);}
+    if(menu==="定位胆") return byRow.size*10;
+    if(menu==="三星一码不定胆") return Math.min(selected.length,3)*(1000/271);
+    if(menu==="三星二码不定胆") return combinationCount(Math.min(selected.length,3),2)*(1000/54);
+    if(menu==="龙虎和") {
+      const pairs:Record<string,[number,number]>={"百十":[0,1],"百个":[0,2],"十个":[1,2]};
+      let maximum=0;
+      for(let n=0;n<1000;n++){
+        const draw=String(n).padStart(3,"0").split("").map(Number);let payout=0;
+        for(const [row,options] of byRow){const [a,b]=pairs[row]??[0,1];const result=draw[a]>draw[b]?"龙":draw[a]<draw[b]?"虎":"和";if(options.includes(result))payout+=result==="和"?10:100/45;}
+        maximum=Math.max(maximum,payout);
+      }
+      return maximum;
+    }
+    if(menu==="三星通选复式") {
+      const positions=["百位","十位","个位"].map(row=>byRow.get(row)??[]); if(positions.some(row=>!row.length))return null;
+      const tickets:string[]=[]; for(const a of positions[0])for(const b of positions[1])for(const c of positions[2])tickets.push(a+b+c);
+      let maximum=0; for(let n=0;n<1000;n++){const draw=String(n).padStart(3,"0");let payout=0;for(const ticket of tickets){const matches=[0,1,2].filter(i=>ticket[i]===draw[i]).length;payout+=matches===3?460:matches===2?20:0;}maximum=Math.max(maximum,payout);} return maximum;
+    }
+    if(menu==="三星通选单式") {
+      const tickets=selected.map(item=>item.slice(item.indexOf("-")+1));let maximum=0;for(let n=0;n<1000;n++){const draw=String(n).padStart(3,"0");let payout=0;for(const ticket of tickets){const matches=[0,1,2].filter(i=>ticket[i]===draw[i]).length;payout+=matches===3?460:matches===2?20:0;}maximum=Math.max(maximum,payout);}return maximum;
+    }
+    if(menu==="三星混合组选") {
+      const entries=selected.map(item=>item.slice(item.indexOf("-")+1));
+      const values=entries.map(entry=>new Set(entry).size===2?1000/3:new Set(entry).size===3?1000/6:0);
+      return values.length?Math.max(...values):null;
+    }
+    const selectedOptions=new Set(selected.map(item=>item.slice(item.lastIndexOf("-")+1)));
+    const awards=standardOdds(game,menu).flatMap(award=>award.value && ([...selectedOptions].some(option=>award.award===option||award.award.startsWith(`${option}·`)) || standardOdds(game,menu).length<=2) ? [Number(award.value)] : []);
+    return awards.length?Math.max(...awards):highestDisplayedOdds(displayedOdds);
+  }
   if (panel === "standard" && game === "k3" && menu === "二不同号胆拖") {
     const notes=betCountForSelections(menu,selected);
     const award=standardOdds(game,menu)[0]?.value;
@@ -250,7 +286,7 @@ export function maximumSimultaneousWinningNotes(game: Game, panel: Panel, menu: 
     const matches = (digit: number, label: string) => label.includes("大") ? digit >= 5 : label.includes("小") ? digit <= 4 : label.includes("单") ? digit % 2 === 1 : label.includes("双") ? digit % 2 === 0 : false;
     return [...selectedByRow.values()].reduce((sum, labels) => sum + Math.max(...Array.from({length:10}, (_, digit) => labels.filter(label => matches(digit, label)).length)), 0);
   }
-  if (game === "ssc" && menu === "定位胆") return selectedByRow.size;
+  if ((game === "ssc" || game === "fc3d") && menu === "定位胆") return selectedByRow.size;
   if (isDigitGame(game) && (menu.includes("不定位") || menu.includes("不定胆"))) {
     const required = menu.includes("三码") ? 3 : menu.includes("二码") ? 2 : 1;
     const positions = game === "fc3d" ? 3 : menu.startsWith("五星") ? 5 : /^(前四|后四)/.test(menu) ? 4 : /^(前二|后二)/.test(menu) ? 2 : 3;
@@ -308,7 +344,7 @@ function rowsFor(game: Game, menu: string): Row[] {
       const group = menu.includes("组选");
       const start = group && !short ? 1 : 0;
       const end = short ? 9 : group ? (two ? 17 : 26) : (two ? 18 : 27);
-      const showOptionOdds = /^(前|中|后)三组选和值B面$/.test(menu);
+      const showOptionOdds = game === "fc3d" && menu === "三星组选和值";
       return [{title:menu.includes("跨度")?"跨度":menu.includes("尾数")?"和值尾数":"和值",choices:Array.from({length:end-start+1},(_,i)=>{const label=String(i+start);const note=showOptionOdds?standardOptionOdds(game,menu,label):"";return {label,...(note?{note}:{})}}),helpers:true}];
     }
     if (menu.includes("单式") || menu.includes("混合")) return [{ title: "单式录入", choices: [{ label: "点击输入号码", note: "每注号码以空格分隔" }] }];
@@ -317,7 +353,7 @@ function rowsFor(game: Game, menu: string): Row[] {
       return positions.map((title) => ({ title, choices: digits, helpers: true }));
     }
     if (menu.includes("组") || menu.includes("不定位") || menu.includes("不定胆")) {
-      const showPackageOdds = /^(前|中|后)三组选包胆B面$/.test(menu);
+      const showPackageOdds = (game === "fc3d" && menu === "三星组选包胆") || /^(前|中|后)三组选包胆B面$/.test(menu);
       const choices = showPackageOdds ? digits.map(choice => ({...choice,note:standardOptionOdds(game,menu,choice.label)})) : digits;
       return [{ title: menu, choices, helpers: !menu.includes("包胆"), hint: menu.includes("包胆") ? "每期仅可选择 1 个包胆号码" : menu.includes("二码") ? "至少选择 2 个号码" : "选择符合条件的号码" }];
     }
@@ -369,7 +405,29 @@ const adminModules = [
   ["追号报表", "沿用注单管理筛选口径，展示追号期数、完成状态、盘口和具体玩法。"],
 ];
 
-const seedRows = fc3dGroups.flatMap(group => group.items.map(name => ({game:"fc3d" as const, group:group.title, name, ...helpFor("fc3d",name)})));
+export function catalogHierarchy(game:Game, group:string, name:string) {
+  if(game!=="fc3d") return {level1:group,level2:group,level3:name};
+  if(group==="三星") {
+    const level2=name.startsWith("三星直选")?"三星直选":name.startsWith("三星通选")?"三星通选":"三星组选";
+    const leaves:Record<string,string>={"三星组选三复式":"组三复式","三星组选六复式":"组六复式","三星混合组选":"混合组选","三星组选和值":"组选和值","三星组选包胆":"组选包胆"};
+    return {level1:"三星",level2,level3:leaves[name] ?? (name.slice(level2.length)||name)};
+  }
+  if(group==="前二"||group==="后二") {
+    const level2=`${group}${name.includes("直选")?"直选":"组选"}`;
+    return {level1:"二星",level2,level3:name.slice(level2.length)||name};
+  }
+  if(group==="定位胆") return {level1:"定位胆",level2:"定位胆",level3:"定位胆"};
+  if(group==="不定胆") return {level1:"不定胆",level2:"三星不定胆",level3:name.slice(2)};
+  return {level1:"龙虎",level2:"龙虎和",level3:"龙虎和"};
+}
+
+function catalogTree(game:Game,groups:{title:string;items:string[]}[]) {
+  const tree=new Map<string,Map<string,{label:string;menu:string}[]>>();
+  for(const group of groups)for(const name of group.items){const {level1,level2,level3}=catalogHierarchy(game,group.title,name);const schemes=tree.get(level1)??new Map();const plays=schemes.get(level2)??[];plays.push({label:level3,menu:name});schemes.set(level2,plays);tree.set(level1,schemes);}
+  return [...tree].map(([type,schemes])=>({type,schemes:[...schemes].map(([scheme,plays])=>({scheme,plays}))}));
+}
+
+const seedRows = fc3dGroups.flatMap(group => group.items.map(name => ({game:"fc3d" as const, group:group.title, name, ...catalogHierarchy("fc3d",group.title,name), ...helpFor("fc3d",name)})));
 
 function AdminRequirements({ tab }: { tab: AdminTab }) {
   const [seedGame] = useState<"fc3d">("fc3d");
@@ -380,11 +438,10 @@ function AdminRequirements({ tab }: { tab: AdminTab }) {
       {tab !== "seed" && <>
         <section className="admin-summary"><div><b>{tab === "central" ? "中控后台设计需求" : "商户后台设计需求"}</b><p>{tab === "central" ? "将后台中游戏开关、玩法结构、赔率、限额及跨商户基础配置等功能中加入标准盘玩法。" : "将商户后台中游戏开关、玩法结构、赔率、限额及注单查询等功能中加入标准盘玩法。"}</p></div></section>
         <section className="admin-card"><h2>核心改造清单</h2><table><thead><tr><th>模块</th><th>标准盘改造</th></tr></thead><tbody>{adminModules.map(([name,desc]) => <tr key={name}><td>{name}</td><td>{desc}</td></tr>)}</tbody></table></section>
-        <div className="admin-grid">
-          <section className="admin-card"><h2>标准盘开关</h2><div className="toggle-row"><span><b>双面盘</b><small>系统固定开启，不可关闭</small></span><i className="switch on" /></div><div className="toggle-row"><span><b>标准盘</b><small>关闭时隐藏客户端入口；开启后显示玩法与快捷标签</small></span><i className="switch on" /></div><p className="admin-note">福彩3D独立配置；商户关闭时只影响本商户前端，不能突破总后台关闭状态。</p></section>
-          <section className="admin-card"><h2>玩法分级与排序</h2><ol><li>一级：玩法组，例如“三星”“前二”。</li><li>二级：具体玩法，例如“三星直选复式”“前二组选复式”。</li><li>推荐排序数值越小越靠前，客户端默认展示最近使用项，其次读取推荐前 4 项。</li><li>玩法编码全局唯一，启停、赔率、限额均以编码关联。</li></ol></section>
-        </div>
-        <section className="admin-card"><h2>订单筛选与列表字段</h2><div className="filter-flow"><span>福彩3D</span><b>›</b><span>标准盘</span><b>›</b><span>玩法组</span><b>›</b><span>具体玩法</span></div><table><thead><tr><th>订单号</th><th>彩种</th><th>盘口</th><th>玩法</th><th>下注内容</th><th>金额</th><th>状态</th></tr></thead><tbody><tr><td>DD202610060001</td><td>福彩3D</td><td>标准盘</td><td>三星直选复式</td><td>百3 十5 个8</td><td>100.00</td><td>待开奖</td></tr><tr><td>DD202610060002</td><td>福彩3D</td><td>标准盘</td><td>三星组选六复式</td><td>1,2,3</td><td>20.00</td><td>已结算</td></tr></tbody></table></section>
+        <section className="admin-card"><h2>玩法三级结构与推荐排序</h2><ol><li><b>配置位置：</b>彩票管理 → 彩种分类 → 福彩3D → 标准盘。</li><li>保留“类型／方案／玩法”三级结构；启用状态、推荐排序和目录层级分别维护。</li><li>修改玩法弹窗增加“玩法推荐排序”，数值越小越靠前，只影响客户端快捷玩法。</li><li>快捷栏默认展示前6个已启用玩法；全部玩法菜单始终展示所有已启用的三级目录。</li></ol>{tab==="central"&&<div className="admin-stack"><figure className="admin-reference wide"><img src="/admin/central-lottery-category-ssc.png" alt="总后台彩种分类中的双面盘和标准盘配置位置参考"/><figcaption>彩种分类：福彩3D沿用该位置增加标准盘三级玩法配置</figcaption></figure><figure className="admin-reference wide"><img src="/admin/central-play-edit-ssc.png" alt="修改玩法弹窗中的玩法推荐排序参考"/><figcaption>修改玩法：增加玩法推荐排序，启用状态与排序分别保存</figcaption></figure></div>}</section>
+        <section className="admin-card"><h2>标准盘开关</h2><div className="toggle-row"><span><b>标准盘</b><small>默认关闭，可人工开启；关闭时隐藏客户端入口</small></span><i className="switch" /></div><p className="admin-note">双面盘默认开启，仅写入规则，不展示虚假操作开关。总后台与商户后台均开启时客户端才显示标准盘；任意一方关闭即隐藏。福彩3D独立配置。</p>{tab==="central"&&<figure className="admin-reference wide"><img src="/admin/central-lottery-management-ssc.png" alt="总后台彩种管理标准盘开关位置参考"/><figcaption>彩种管理：在现有彩种操作中增加福彩3D标准盘开关</figcaption></figure>}</section>
+        <section className="admin-card"><h2>玩法赔率与限额</h2><p>增加“盘口”筛选；切换到标准盘后同步切换玩法、奖项、标准赔率和限额列表。中控维护跨商户基础配置；商户仅在授权范围内调整赔率与限额。</p>{tab==="central"&&<figure className="admin-reference wide"><img src="/admin/central-play-odds-k3.png" alt="总后台玩法赔率盘口筛选与奖项列表参考"/><figcaption>玩法赔率：福彩3D多奖级按真实奖项逐项维护</figcaption></figure>}</section>
+        <section className="admin-card"><h2>订单筛选与列表字段</h2><div className="filter-flow"><span>福彩3D</span><b>›</b><span>双面盘／标准盘</span><b>›</b><span>类型／方案／具体玩法</span></div><table><thead><tr><th>订单号</th><th>彩种</th><th>盘口</th><th>玩法</th><th>下注内容</th><th>金额</th><th>状态</th></tr></thead><tbody><tr><td>DD202610060001</td><td>福彩3D</td><td>标准盘</td><td>三星直选复式</td><td>百3 十5 个8</td><td>100.00</td><td>待开奖</td></tr><tr><td>DD202610060002</td><td>福彩3D</td><td>标准盘</td><td>三星组选六复式</td><td>1,2,3</td><td>20.00</td><td>已结算</td></tr></tbody></table>{tab==="central"&&<figure className="admin-reference wide"><img src="/admin/central-order-management.png" alt="注单管理盘口筛选与盘口字段参考"/><figcaption>注单管理：增加盘口筛选与盘口字段，追号和彩票报表同步</figcaption></figure>}</section>
       </>}
       {tab === "seed" && <>
         <section className="admin-summary"><div><b>初始化数据</b><p>福彩3D标准盘玩法作为可重复执行的种子数据，供开发、测试与后台配置初始化。</p></div><div className="seed-filter"><button className="active">福彩3D</button></div></section>
@@ -429,7 +486,9 @@ export default function Home() {
   const phoneRef = useRef<HTMLElement>(null);
   const menus = game === "ssc" ? sscMenus : game === "fc3d" ? fc3dMenus : k3Menus;
   const groups = game === "ssc" ? sscGroups : game === "fc3d" ? fc3dGroups : k3Groups;
-  const visibleMenus = [menu, ...menus.filter((item) => item !== menu)].slice(0, 4);
+  const playTree=useMemo(()=>catalogTree(game,groups),[game,groups]);
+  const currentType=playTree.find(type=>type.schemes.some(scheme=>scheme.plays.some(play=>play.menu===menu)))?.type??playTree[0]?.type??null;
+  const visibleMenus = [menu, ...menus.filter((item) => item !== menu)].slice(0, 6);
   const rows = useMemo(() => panel === "standard" ? rowsFor(game, menu) : doubleRows(game), [game, menu, panel]);
   const playHelp = helpFor(game, panel === "standard" ? menu : "双面盘");
   const betCount = betCountForSelections(menu, selected);
@@ -583,8 +642,8 @@ export default function Home() {
           <aside className="play-drawer" onClick={(e) => e.stopPropagation()}>
             <header><span /><b>全部玩法</b><button onClick={() => { setDrawer(false); setActiveGroup(null); }}>×</button></header>
             <div className="cascade-drawer">
-              <div className="child-pane">{activeGroup ? <><p>{activeGroup} · 请选择具体玩法</p><div>{groups.find((group) => group.title === activeGroup)?.items.map((item) => <button className={menu === item ? "active" : ""} onClick={() => chooseMenu(item)} key={item}>{item}</button>)}</div></> : <div className="choose-parent"><b>先选择一级玩法</b><span>右侧为父级玩法，点击后在这里显示对应子玩法。</span></div>}</div>
-              <nav className="parent-rail"><div>全部玩法 <b>▦</b></div>{groups.map((group) => <button className={activeGroup === group.title ? "active" : ""} key={group.title} onClick={() => setActiveGroup(group.title)}>{group.title}</button>)}</nav>
+              <div className="child-pane">{(activeGroup??currentType) ? <>{playTree.find(item=>item.type===(activeGroup??currentType))?.schemes.map(scheme=><section className="drawer-scheme" key={scheme.scheme}><p>{scheme.scheme}</p><div>{scheme.plays.map(play=><button className={menu===play.menu?"active":""} onClick={()=>chooseMenu(play.menu)} key={play.menu}>{play.label}</button>)}</div></section>)}</> : <div className="choose-parent"><b>请选择玩法类型</b></div>}</div>
+              <nav className="parent-rail"><div>全部玩法 <b>▦</b></div>{playTree.map(item=><button className={(activeGroup??currentType)===item.type?"active":""} key={item.type} onClick={()=>setActiveGroup(item.type)}>{item.type}</button>)}</nav>
             </div>
           </aside>
         </div>}
@@ -630,15 +689,16 @@ export default function Home() {
             <section className="spec-card"><h2>设计需求</h2><p>客户端沿用时时彩、快三标准盘已经确认的页面结构与交互，只替换为开云彩票福彩3D的31个标准盘玩法、赔率和对应的三位数选号内容。</p></section>
             <section className="spec-card"><h2>布局与层级</h2><ul><li>玩法展示区独立纵向滚动。</li><li>顶部依次为彩种切换、开奖信息、主功能标签与玩法快捷标签。</li><li>底部投注栏固定在屏幕内，与手机容器同宽。</li><li>橙色仅用于当前态、可投注态和核心数据；灰色用于未选与辅助信息。</li></ul></section>
             <section className="spec-card"><h2>组件状态</h2><div className="state-grid"><span><i className="state-default" />默认</span><span><i className="state-active" />选中</span><span><i className="state-disabled" />禁用</span><span><i className="state-danger" />异常/提醒</span></div></section>
+            <section className="spec-card"><h2>本轮完整检查结果</h2><ol><li><b>玩法层级：</b>补齐5个一级类型、10个二级方案、31个三级玩法。</li><li><b>菜单交互：</b>恢复九宫格入口、父级切换、子玩法选择关闭及快捷栏同步。</li><li><b>快捷按钮：</b>数字复选行保留全/大/小/单/双/清；包胆、单式、龙虎和不重复添加。</li><li><b>逐项赔率：</b>龙虎和及三星组选和值按投注项展示；单一赔率玩法不重复显示。</li><li><b>赔率区间：</b>全部由当前玩法同一份理论赔率数据生成。</li><li><b>标准赔率：</b>改为等概率结果计算；竞品0.98商业赔率仅作对照证据。</li><li><b>注数：</b>和值、跨度、组选和值和包胆按展开后的基础注计算。</li><li><b>最高中奖：</b>定位胆、不定胆、龙虎和和通选按同期开奖可同时命中的结果计算。</li><li><b>兼中关系：</b>龙虎三组位置可兼中；每组龙/虎/和互斥；组选形态互斥。</li><li><b>后台字段：</b>补齐盘口开关、推荐排序、赔率、限额、订单盘口筛选与字段。</li><li><b>规则一致性：</b>说明、示例、选号位置与31个玩法逐项对齐。</li><li><b>待确认：</b>三星通选460/20的奖级分配虽整体无抽水，仍须业务确认后进入正式结算。</li></ol></section>
           </>}
           {specTab === "interaction" && <>
-            <section className="spec-card"><h2>核心交互</h2><ol><li>点击当前彩种后的三角：弹出“快捷菜单”，点击彩票卡片后切换到对应彩种并重置当前选号。</li><li>点击“双面盘/标准盘”：切换盘口，清空上一盘口的选号，避免投注口径混用。</li><li>点击宫格图标：打开全部玩法；父级玩法固定在右侧，点击父级后在左侧展示对应子玩法。</li><li>点击具体子玩法后关闭菜单、刷新投注区并更新顶部快捷玩法。</li><li>点击奖金/赔率后的信息图标：从底部呼出当前玩法说明、投注示例和示例号码。</li><li>点击投注项：在默认/选中间切换，同步刷新注数、金额、购彩篮角标和投注按钮状态。</li><li>点击“购彩篮”：有注单时呼出连续铺满的购物车底板；无注单时按钮禁用，不呼出底板。</li><li>删除最后一组注单或清空全部注单后，自动关闭购物车底板。</li><li>点击“追号”：有有效注单时从手机底部呼出追号菜单；无注单时按钮禁用。</li><li>追号支持选择起始期号、追号期数、起始倍数、每隔 N 期增加 N 倍及中奖停追；参数变化后实时重算每期金额与总投注。</li><li>追号详情默认展开，可收起；详情表随期数生成连续期号，并固定显示底部汇总与“确认追号”。</li><li>点击购物车币种箭头：二次呼出货币选择底板，可在 CNY 与 USDT 间切换。</li><li>点击“投注”：呼出二次确认底板，核对彩种、期号、玩法、选号、注数与合计金额。</li><li>购彩篮为空时不显示红点；有注单时显示数字角标。</li><li>点击全/大/小/奇/偶：批量选号；“清”仅清除当前行。</li></ol></section>
-            <section className="spec-card"><h2>福彩3D特殊交互（测试重点）</h2><ul><li>三星直选复式、前二直选复式、后二直选复式必须按各位置所选号码数相乘计注；缺少任一必要位置时不成注。</li><li>三星组选三复式至少选择2个不同号码，每组号码形成2注；三星组选六复式至少选择3个不同号码，每3个号码形成1注。</li><li>前二、后二组选复式至少选择2个不同号码，每2个号码形成1注；组选包胆每期只能选择1个包胆号码，选择新号码时自动替换旧号码。</li><li>单式和混合组选只有输入位数、号码形态合法时才形成有效注单；重复号码按同一注去重。</li><li>三星通选包含一等奖和二等奖两个奖级；混合组选、组选和值、组选包胆分别按组三和组六奖级展示赔率范围。</li><li>定位胆按百位、十位、个位分别选号；三星一码不定胆和二码不定胆不限位置，二码必须选择至少2个不同号码。</li><li>龙虎和只比较百十、百个、十个三组位置；龙、虎赔率9.80，和赔率2.17，所选位置与形态分别成注。</li><li>全部31个玩法和赔率读取福彩3D独立配置，不复用时时彩或排列3/5目录。</li></ul></section>
+            <section className="spec-card"><h2>核心交互</h2><ol><li>点击当前彩种后的三角：弹出“快捷菜单”，点击彩票卡片后切换到对应彩种并重置当前选号。</li><li>点击“双面盘/标准盘”：切换盘口，清空上一盘口的选号，避免投注口径混用。</li><li>点击宫格图标：打开全部玩法；父级玩法固定在右侧，点击父级后在左侧展示对应子玩法。</li><li>点击具体子玩法后关闭菜单、刷新投注区并更新顶部快捷玩法。</li><li>点击奖金/赔率后的信息图标：从底部呼出当前玩法说明、投注示例和示例号码。</li><li>点击投注项：在默认/选中间切换，同步刷新注数、金额、购彩篮角标和投注按钮状态。</li><li>点击“购彩篮”：有注单时呼出连续铺满的购物车底板；无注单时按钮禁用，不呼出底板。</li><li>删除最后一组注单或清空全部注单后，自动关闭购物车底板。</li><li>点击“追号”：有有效注单时从手机底部呼出追号菜单；无注单时按钮禁用。</li><li>追号支持选择起始期号、追号期数、起始倍数、每隔 N 期增加 N 倍及中奖停追；参数变化后实时重算每期金额与总投注。</li><li>追号详情默认展开，可收起；详情表随期数生成连续期号，并固定显示底部汇总与“确认追号”。</li><li>点击购物车币种箭头：二次呼出货币选择底板，可在 CNY 与 USDT 间切换。</li><li>点击“投注”：呼出二次确认底板，核对彩种、期号、玩法、选号、注数与合计金额。</li><li>购彩篮为空时不显示红点；有注单时显示数字角标。</li><li>点击全/大/小/单/双：批量选号；“清”仅清除当前行。</li></ol></section>
+            <section className="spec-card"><h2>福彩3D特殊交互（测试重点）</h2><ul><li>三星直选复式、前二直选复式、后二直选复式必须按各位置所选号码数相乘计注；缺少任一必要位置时不成注。</li><li>三星组选三复式至少选择2个不同号码，每组号码形成2注；三星组选六复式至少选择3个不同号码，每3个号码形成1注。</li><li>前二、后二组选复式至少选择2个不同号码，每2个号码形成1注；组选包胆每期只能选择1个包胆号码，选择新号码时自动替换旧号码。</li><li>单式和混合组选只有输入位数、号码形态合法时才形成有效注单；重复号码按同一注去重。</li><li>三星通选包含一等奖和二等奖两个奖级；混合组选、组选和值、组选包胆分别按组三和组六奖级展示赔率范围。</li><li>定位胆按百位、十位、个位分别选号；三星一码不定胆和二码不定胆不限位置，二码必须选择至少2个不同号码。</li><li>龙虎和只比较百十、百个、十个三组位置；无抽水赔率为龙/虎2.22、和10.00，各位置分别成注且跨位置可同时中奖。</li><li>全部31个玩法和赔率读取福彩3D独立配置，不复用时时彩或排列3/5目录。</li></ul></section>
             <section className="spec-card"><h2>投注栏规则</h2><ul><li>无有效选号时，“投注”置灰，“追号”可见但不执行。</li><li>默认预设倍数为 5/10/20/50，可在“编辑预设倍数”中修改；点击 ×2 对当前倍数翻倍。</li><li>赔率使用普通标准文字展示；多赔率玩法显示最小值～最大值。</li><li>点击赔率后的信息图标，从底部弹出玩法说明、投注示例和示例号码。</li><li>点击清空后清除当前页选号；购彩篮角标为已入篮注单数。</li></ul></section>
           </>}
           {specTab === "fields" && <>
             <section className="spec-card"><h2>页面字段</h2><table><thead><tr><th>字段</th><th>类型/格式</th><th>说明</th></tr></thead><tbody>
-              <tr><td>彩种名称</td><td>String</td><td>固定展示福彩3D与当前盘口名。</td></tr><tr><td>当前期号</td><td>Number/String</td><td>已开奖期次，对应开奖号码。</td></tr><tr><td>下期期号</td><td>Number/String</td><td>正在接受投注的期次。</td></tr><tr><td>倒计时</td><td>HH:MM:SS</td><td>距离封盘的剩余时间，归零后进入封盘态。</td></tr><tr><td>开奖号码</td><td>Array</td><td>百位、十位、个位共3个0–9号码。</td></tr><tr><td>玩法编码</td><td>String</td><td>后台配置的唯一玩法标识，前端不直接展示。</td></tr><tr><td>奖金/赔率</td><td>Decimal</td><td>按开云福彩3D标准盘配置展示；多奖级玩法显示最小值～最大值范围。</td></tr><tr><td>注数</td><td>Integer</td><td>根据玩法算法与当前选号实时计算。</td></tr><tr><td>投注金额</td><td>Decimal</td><td>注数 × 每注金额 × 倍数。</td></tr><tr><td>余额</td><td>Currency</td><td>按当前币种精度展示可用余额。</td></tr><tr><td>追号期数</td><td>Integer / 1–99</td><td>从起始期号起连续生成的追号期数，提供 5/10/15/20 快捷值。</td></tr><tr><td>起始倍数</td><td>Integer ≥ 1</td><td>第一期使用的投注倍数。</td></tr><tr><td>追号递增</td><td>间隔期数 + 增加倍数</td><td>每隔指定期数提升一次倍数，变化后重算明细与总额。</td></tr><tr><td>中奖停追</td><td>Boolean</td><td>开启后任一期中奖即停止执行后续追号计划。</td></tr>
+              <tr><td>彩种名称</td><td>String</td><td>固定展示福彩3D与当前盘口名。</td></tr><tr><td>当前期号</td><td>Number/String</td><td>已开奖期次，对应开奖号码。</td></tr><tr><td>下期期号</td><td>Number/String</td><td>正在接受投注的期次。</td></tr><tr><td>倒计时</td><td>HH:MM:SS</td><td>距离封盘的剩余时间，归零后进入封盘态。</td></tr><tr><td>开奖号码</td><td>Array</td><td>百位、十位、个位共3个0–9号码。</td></tr><tr><td>玩法编码</td><td>String</td><td>后台配置的唯一玩法标识，前端不直接展示。</td></tr><tr><td>奖金/赔率</td><td>Decimal</td><td>理论标准赔率含本金、无抽水；客户端直接截断两位，研发数据保留六位与精确分数。</td></tr><tr><td>注数</td><td>Integer</td><td>根据玩法算法与当前选号实时计算。</td></tr><tr><td>投注金额</td><td>Decimal</td><td>注数 × 每注金额 × 倍数。</td></tr><tr><td>余额</td><td>Currency</td><td>按当前币种精度展示可用余额。</td></tr><tr><td>追号期数</td><td>Integer / 1–99</td><td>从起始期号起连续生成的追号期数，提供 5/10/15/20 快捷值。</td></tr><tr><td>起始倍数</td><td>Integer ≥ 1</td><td>第一期使用的投注倍数。</td></tr><tr><td>追号递增</td><td>间隔期数 + 增加倍数</td><td>每隔指定期数提升一次倍数，变化后重算明细与总额。</td></tr><tr><td>中奖停追</td><td>Boolean</td><td>开启后任一期中奖即停止执行后续追号计划。</td></tr>
             </tbody></table></section>
           </>}
           {specTab === "rules" && <>
