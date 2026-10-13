@@ -397,12 +397,19 @@ function doubleRows(game: Game): Row[] {
   return [{ title: "两面", choices: ["大", "小", "单", "双"].map((label) => ({ label, note: "1.96" })) }];
 }
 
-const adminModules = [
-  ["彩种分类", "增加双面盘/标准盘切换；标准盘玩法支持分组、启停、推荐排序与前端快捷位配置。"],
-  ["赔率设置", "增加“盘口”筛选，切换后只展示对应盘口玩法、奖项、最高赔率、降赔比例与当前赔率。"],
-  ["玩法下注限额", "增加“盘口”筛选，按玩法维护单注、用户当期、玩法当期、最多选号/注数及启停状态。"],
-  ["注单管理", "玩法筛选采用 全部 → 双面盘/标准盘 → 具体玩法三级口径，列表增加“盘口”列。"],
-  ["追号报表", "沿用注单管理筛选口径，展示追号期数、完成状态、盘口和具体玩法。"],
+const centralAdminModules = [
+  ["彩种分类", "福彩3D增加双面盘／标准盘切换；进入页面默认双面盘。标准盘沿用后台现有三级玩法结构，并增加玩法推荐排序。"],
+  ["玩法赔率", "增加“盘口”筛选；切换盘口后，玩法选择项及下方赔率列表同步切换。"],
+  ["彩种管理", "福彩3D增加“标准盘开关”。双面盘固定开启且不显示开关；标准盘默认关闭，可人工开启。"],
+  ["注单管理", "选择玩法增加盘口选项；可选择双面盘、标准盘及对应盘口的全部或具体玩法，列表增加“盘口”列。"],
+];
+
+const merchantAdminModules = [
+  ["注单管理", "选择玩法增加盘口选项，列表增加“盘口”列；运营分析—游戏注单—彩票游戏报表同步采用该口径。"],
+  ["彩票管理—彩种设置", "福彩3D增加“标准盘开关”。双面盘固定开启且不显示开关；标准盘默认关闭，可人工开启。"],
+  ["玩法赔率", "增加“盘口”筛选，默认双面盘；选择标准盘后，玩法选择项及下方赔率列表同步切换。"],
+  ["玩法下注限额", "增加“盘口”筛选，默认双面盘；选择标准盘后，切换为对应标准盘玩法的限额列表。"],
+  ["注单管理—追号报表", "选择玩法增加盘口选项，追号列表增加“盘口”列。"],
 ];
 
 export function catalogHierarchy(game:Game, group:string, name:string) {
@@ -432,15 +439,17 @@ const seedRows = fc3dGroups.flatMap(group => group.items.map(name => ({game:"fc3
 function AdminRequirements({ tab }: { tab: AdminTab }) {
   const [seedGame] = useState<"fc3d">("fc3d");
   const pageLabel = tab === "central" ? "中控后台" : tab === "merchant" ? "商户后台" : "初始化数据";
+  const modules = tab === "central" ? centralAdminModules : merchantAdminModules;
   return <section className="admin-requirements">
     <header className="admin-head"><div><small>福彩3D标准盘设计 / {pageLabel}</small><h1>福彩3D标准盘{pageLabel}设计需求</h1></div></header>
     <div className="admin-body">
       {tab !== "seed" && <>
         <section className="admin-summary"><div><b>{tab === "central" ? "中控后台设计需求" : "商户后台设计需求"}</b><p>{tab === "central" ? "将后台中游戏开关、玩法结构、赔率、限额及跨商户基础配置等功能中加入标准盘玩法。" : "将商户后台中游戏开关、玩法结构、赔率、限额及注单查询等功能中加入标准盘玩法。"}</p></div></section>
-        <section className="admin-card"><h2>核心改造清单</h2><table><thead><tr><th>模块</th><th>标准盘改造</th></tr></thead><tbody>{adminModules.map(([name,desc]) => <tr key={name}><td>{name}</td><td>{desc}</td></tr>)}</tbody></table></section>
+        <section className="admin-card"><h2>核心改造清单</h2><table><thead><tr><th>模块</th><th>标准盘改造</th></tr></thead><tbody>{modules.map(([name,desc]) => <tr key={name}><td>{name}</td><td>{desc}</td></tr>)}</tbody></table></section>
         <section className="admin-card"><h2>玩法三级结构与推荐排序</h2><ol><li><b>配置位置：</b>彩票管理 → 彩种分类 → 福彩3D → 标准盘。</li><li>保留“类型／方案／玩法”三级结构；启用状态、推荐排序和目录层级分别维护。</li><li>修改玩法弹窗增加“玩法推荐排序”，数值越小越靠前，只影响客户端快捷玩法。</li><li>快捷栏默认展示前6个已启用玩法；全部玩法菜单始终展示所有已启用的三级目录。</li></ol>{tab==="central"&&<div className="admin-stack"><figure className="admin-reference wide"><img src="/admin/central-lottery-category-ssc.png" alt="总后台彩种分类中的双面盘和标准盘配置位置参考"/><figcaption>彩种分类：福彩3D沿用该位置增加标准盘三级玩法配置</figcaption></figure><figure className="admin-reference wide"><img src="/admin/central-play-edit-ssc.png" alt="修改玩法弹窗中的玩法推荐排序参考"/><figcaption>修改玩法：增加玩法推荐排序，启用状态与排序分别保存</figcaption></figure></div>}</section>
         <section className="admin-card"><h2>标准盘开关</h2><div className="toggle-row"><span><b>标准盘</b><small>默认关闭，可人工开启；关闭时隐藏客户端入口</small></span><i className="switch" /></div><p className="admin-note">双面盘默认开启，仅写入规则，不展示虚假操作开关。总后台与商户后台均开启时客户端才显示标准盘；任意一方关闭即隐藏。福彩3D独立配置。</p>{tab==="central"&&<figure className="admin-reference wide"><img src="/admin/central-lottery-management-ssc.png" alt="总后台彩种管理标准盘开关位置参考"/><figcaption>彩种管理：在现有彩种操作中增加福彩3D标准盘开关</figcaption></figure>}</section>
-        <section className="admin-card"><h2>玩法赔率与限额</h2><p>增加“盘口”筛选；切换到标准盘后同步切换玩法、奖项、标准赔率和限额列表。中控维护跨商户基础配置；商户仅在授权范围内调整赔率与限额。</p>{tab==="central"&&<figure className="admin-reference wide"><img src="/admin/central-play-odds-k3.png" alt="总后台玩法赔率盘口筛选与奖项列表参考"/><figcaption>玩法赔率：福彩3D多奖级按真实奖项逐项维护</figcaption></figure>}</section>
+        <section className="admin-card"><h2>玩法赔率改动位置</h2><ol><li><b>操作路径：</b>彩票管理 → 玩法赔率。</li><li><b>筛选区域：</b>彩种分类选择福彩3D；新增“盘口”筛选，选择标准盘后，“彩种玩法”只展示福彩3D标准盘玩法。</li><li><b>赔率列表：</b>查询后展示所选玩法的真实奖项和标准赔率；多赔率玩法逐奖项维护，数值读取初始化数据。</li>{tab==="merchant"&&<li><b>商户权限：</b>仅在中控授权范围内调整赔率，不能突破中控基础配置。</li>}</ol>{tab==="central"&&<figure className="admin-reference wide"><img src="/admin/central-play-odds-k3.png" alt="总后台玩法赔率盘口筛选与奖项列表参考"/><figcaption>玩法赔率：增加盘口筛选，福彩3D标准盘按真实奖项逐项维护</figcaption></figure>}</section>
+        {tab==="merchant"&&<section className="admin-card"><h2>玩法下注限额改动位置</h2><ol><li><b>操作路径：</b>彩票管理 → 玩法下注限额。</li><li><b>盘口筛选：</b>新增双面盘／标准盘，默认双面盘。</li><li><b>限额列表：</b>选择标准盘后展示对应玩法的单注、用户当期、玩法当期、最多选号／注数及启停状态。</li></ol></section>}
         <section className="admin-card"><h2>订单筛选与列表字段</h2><div className="filter-flow"><span>福彩3D</span><b>›</b><span>双面盘／标准盘</span><b>›</b><span>类型／方案／具体玩法</span></div><table><thead><tr><th>订单号</th><th>彩种</th><th>盘口</th><th>玩法</th><th>下注内容</th><th>金额</th><th>状态</th></tr></thead><tbody><tr><td>DD202610060001</td><td>福彩3D</td><td>标准盘</td><td>三星直选复式</td><td>百3 十5 个8</td><td>100.00</td><td>待开奖</td></tr><tr><td>DD202610060002</td><td>福彩3D</td><td>标准盘</td><td>三星组选六复式</td><td>1,2,3</td><td>20.00</td><td>已结算</td></tr></tbody></table>{tab==="central"&&<figure className="admin-reference wide"><img src="/admin/central-order-management.png" alt="注单管理盘口筛选与盘口字段参考"/><figcaption>注单管理：增加盘口筛选与盘口字段，追号和彩票报表同步</figcaption></figure>}</section>
       </>}
       {tab === "seed" && <>
@@ -611,7 +620,7 @@ export default function Home() {
         </nav>
 
         {panel === "standard" && <nav className="sub-play-tabs">
-          {visibleMenus.map((item) => <button className={menu === item ? "active" : ""} key={item} onClick={() => chooseMenu(item)}>{item}</button>)}
+          <div className="play-tab-scroll">{visibleMenus.map((item) => <button className={menu === item ? "active" : ""} key={item} onClick={() => chooseMenu(item)}>{item}</button>)}</div>
           <button className="all-plays" onClick={() => { setDrawer(true); setActiveGroup(null); }}>▦</button>
         </nav>}
 
