@@ -5,7 +5,7 @@ import { fc3dObservedOdds, fc3dVideoFile } from "./fc3d-data";
 import { standardOdds, displayStandard } from "./standard-odds";
 
 type Seed = {game:string;group:string;name:string;text:string;bet:string;sample:string;level1?:string;level2?:string;level3?:string};
-export const playHeaders = ["类型","方案","玩法","玩法缩写","玩法简介","玩法说明","投注示例","示例号码"];
+export const playHeaders = ["类型","方案","玩法","玩法缩写","玩法简介","玩法说明","投注示例","示例号码","玩法推荐排行"];
 export function playFields(r:Seed) {
   const match = r.name.match(/^(三星|前二|后二)(直选|组选)?(.+)$/);
   const scheme = r.level2 ?? (match ? match[1] + (match[2] ?? "") : r.name);
@@ -38,7 +38,7 @@ export function seedCsv(records:ReturnType<typeof exportRecords>) {
   return "\uFEFF"+lines.map(row=>row.map(csvCell).join(",")).join("\r\n");
 }
 export function playCsv(records:ReturnType<typeof exportRecords>) {
-  return "\uFEFF"+[playHeaders,...records.map(r=>[r.type,r.scheme,r.play,r.shortName,r.introduction,r.description,r.betExample,r.resultExample])].map(row=>row.map(csvCell).join(",")).join("\r\n");
+  return "\uFEFF"+[playHeaders,...records.map(r=>[r.type,r.scheme,r.play,r.shortName,r.introduction,r.description,r.betExample,r.resultExample,r.recommendedOrder])].map(row=>row.map(csvCell).join(",")).join("\r\n");
 }
 export function standardCsv(records:ReturnType<typeof exportRecords>) {
   const lines:unknown[][]=[["彩种","玩法","奖项","投注注数","最高赔率","精确分数","总组合数","中奖组合数","公式","计算假设"]];
@@ -63,13 +63,13 @@ export function SeedTable({rows,game}:{rows:Seed[];game:string}) {
     {["ssc","k3","fc3d"].filter(g=>records.some(r=>r.game===g)).map(g=><div key={g}>
     <h2>{g==="ssc"?"时时彩":g==="fc3d"?"福彩3D":"快三"} · 玩法初始化数据</h2>
     <div className="table-scroll seed-table-scroll" role="region" aria-label="玩法初始化数据，可横向滚动查看全部列" tabIndex={0}><table className="seed-table">
-      <colgroup>{[120,140,140,180,240,340,200,240].map((width,i)=><col key={i} style={{width}}/>)}</colgroup>
+      <colgroup>{[120,140,140,180,240,340,200,240,140].map((width,i)=><col key={i} style={{width}}/>)}</colgroup>
       <thead><tr>{playHeaders.map(h=><th scope="col" key={h}>{h}</th>)}</tr></thead>
       <tbody>{records.filter(r=>r.game===g).map(r=><tr key={r.code}>
         <td>{r.type}</td><td>{r.scheme}</td><td>{r.play}</td>
         <td><strong className="seed-play-name">{r.shortName}</strong></td>
         <td>{r.introduction}</td><td><div className="seed-description">{r.description}</div></td>
-        <td>{r.betExample || "待补充"}</td><td>{r.resultExample || "待补充"}</td>
+        <td>{r.betExample || "待补充"}</td><td>{r.resultExample || "待补充"}</td><td><b>{r.recommendedOrder}</b></td>
       </tr>)}</tbody>
     </table></div></div>)}
     <h2>2、玩法赔率 · 理论标准赔率</h2>
