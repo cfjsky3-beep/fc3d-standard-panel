@@ -52,14 +52,14 @@ export function SeedTable({rows,game}:{rows:Seed[];game:string}) {
   const records = exportRecords(rows,game);
   function download(format:"json"|"csv"|"plays"|"standard") {
     try {
-      const content=format==="json" ? JSON.stringify({schemaVersion:"1.4.0",dataVersion:"2026-10-16",notes:["福彩3D标准盘共31个玩法","一级类型为三星、二星、定位胆、不定胆、龙虎；前二和后二属于二星下的二级方案","三星通选一等奖460、二等奖20，两个奖级互斥","玩法说明采用老竞品格式并按福彩3D规则改写","标准赔率按等概率开奖结果计算，含本金、无抽水；竞品赔率仅作证据对照","界面截断两位，研发数据保留六位及精确分数","按code幂等更新；生产默认禁用"],limits:standardLimits,plays:records},null,2) : seedCsv(records);
+      const content=format==="json" ? JSON.stringify({schemaVersion:"1.4.0",dataVersion:"2026-10-16",notes:["福彩3D标准盘共31个玩法","按开云彩票全部玩法菜单，一级类型为三星、前二、后二、定位胆、不定胆、龙虎和","三星通选一等奖460、二等奖20，两个奖级互斥","玩法说明采用老竞品格式并按福彩3D规则改写","标准赔率按等概率开奖结果计算，含本金、无抽水；竞品赔率仅作证据对照","统一限额与推荐排行属于本方案后台口径，不是开云前台可见字段","界面截断两位，研发数据保留六位及精确分数","按code幂等更新；生产默认禁用"],limits:standardLimits,plays:records},null,2) : seedCsv(records);
       const url=URL.createObjectURL(new Blob([format==="plays" ? playCsv(records) : format==="standard" ? standardCsv(records) : content],{type:format==="json"?"application/json;charset=utf-8":"text/csv;charset=utf-8"}));
       const link=document.createElement("a");link.href=url;link.download=`lottery-${format==="plays"?"plays":format==="standard"?"standard-odds":"seed"}-${game}-20261013.${format==="json"?"json":"csv"}`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
       setMessage(`已生成 ${records.length} 个玩法的 ${format.toUpperCase()} 文件`);
     } catch {setMessage("导出失败，请重试或联系研发读取种子数据源。");}
   }
   return <section className="admin-card seed-card"><h2>玩法与赔率初始化数据</h2>
-    <section className="spec-card"><h2>玩法下注限额（所有玩法统一）</h2><table><tbody>{limitRows.map(([name,value])=><tr key={name}><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody></table><p className="admin-note">以上数值沿用标准盘统一模板；数值 0 表示该项不设置额外限制。</p></section>
+    <section className="spec-card"><h2>玩法下注限额（所有玩法统一）</h2><table><tbody>{limitRows.map(([name,value])=><tr key={name}><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody></table><p className="admin-note">以上数值沿用标准盘统一后台模板；数值 0 表示该项不设置额外限制。开云客户端不展示这些后台字段，因此不能作为竞品已验证数据。</p></section>
     <div className="seed-export"><button onClick={()=>download("json")}>导出 JSON（研发）</button><button onClick={()=>download("plays")}>导出 CSV（玩法字段）</button><button onClick={()=>download("csv")}>导出 CSV（逐项赔率）</button><span>{records.length} 个玩法 · {records.reduce((n,r)=>n+r.odds.length,0)} 条可见赔率</span></div>
     <p role="status" className="admin-note seed-feedback">{message}</p>
     <p className="admin-note">福彩3D共31个玩法；标准赔率按等概率结果计算，含本金、无抽水。界面直接截断两位，研发导出保留六位与精确分数；竞品商业赔率仅作对照。生产启用状态默认关闭。</p>
