@@ -6,13 +6,15 @@ import { standardOdds, displayStandard } from "./standard-odds";
 
 type Seed = {game:string;group:string;name:string;text:string;bet:string;sample:string;level1?:string;level2?:string;level3?:string};
 export const playHeaders = ["类型","方案","玩法","玩法缩写","玩法简介","玩法说明","投注示例","示例号码","玩法推荐排行"];
+export const standardLimits = {singleBetMaxAmount:400000,userIssueMaxBet:400000,playIssueMaxBet:99999999,issueMaxSelections:0,totalBetCount:0,issueMaxBetCountRatio:0,issueMaxBetCount:0};
+const limitRows = [["注单单注最大金额",standardLimits.singleBetMaxAmount],["用户当前期最大下注",standardLimits.userIssueMaxBet],["玩法当期最大下注",standardLimits.playIssueMaxBet],["当期最多选号",standardLimits.issueMaxSelections],["总注数",standardLimits.totalBetCount],["当期最多注数比例（%）",standardLimits.issueMaxBetCountRatio],["当期最多注数",standardLimits.issueMaxBetCount]] as const;
 export function playFields(r:Seed) {
   const match = r.name.match(/^(三星|前二|后二)(直选|组选)?(.+)$/);
   const scheme = r.level2 ?? (match ? match[1] + (match[2] ?? "") : r.name);
   const play = r.level3 ?? (match ? match[3] : r.name);
   // The Chinese short name is a display label, not the internal identifier.
   const introduction = r.text.includes("尚待提供") ? "待补充" : r.text.split(/[；;。]/)[0];
-  return {type:r.group,scheme,play,shortName:r.name,introduction};
+  return {type:r.level1 ?? r.group,scheme,play,shortName:r.name,introduction};
 }
 // Name-based keys are independent of display order. Changing a name requires an explicit migration.
 export function seedCode(game:string,name:string) { return `${game.toUpperCase()}_${Array.from(name).map(c=>c.codePointAt(0)!.toString(16)).join("_")}`; }
@@ -21,8 +23,8 @@ export function exportRecords(rows:Seed[],game:string) {
     const evidence = r.game === "ssc" ? observedOdds[r.name] ?? {} : r.game === "fc3d" ? Object.fromEntries(Object.entries(fc3dObservedOdds[r.name] ?? {}).map(([option,raw])=>[option,{raw,settlementOdds:raw,status:"竞品在线配置已确认",seconds:null}])) : {};
     const standards = standardOdds(r.game,r.name);
     const uniform = new Set(standards.map(o=>o.value));
-    return {code:seedCode(r.game,r.name),game:r.game,panel:"standard",parent:r.group,name:r.name,recommendedOrder:index+1,...playFields(r),
-      description:r.text,betExample:r.bet,resultExample:r.sample,ruleStatus:r.name.includes("通选")?"奖级分配待业务确认":"规则与数学已核对",source:r.game==="ssc" ? (r.name==="龙虎和" ? "用户提供DB截图" : "老系统录像整理") : r.game==="fc3d" ? "开云彩票福彩3D在线配置；老竞品说明格式" : "既有原型待核对",
+    return {code:seedCode(r.game,r.name),game:r.game,panel:"standard",parent:r.level1 ?? r.group,name:r.name,recommendedOrder:index+1,...playFields(r),
+      description:r.text,betExample:r.bet,resultExample:r.sample,ruleStatus:"规则与数学已核对",source:r.game==="ssc" ? (r.name==="龙虎和" ? "用户提供DB截图" : "老系统录像整理") : r.game==="fc3d" ? "开云彩票福彩3D在线配置；老竞品说明格式" : "既有原型待核对",
       defaultOdds:uniform.size===1 ? standards[0].value : null,standardOdds:standards,defaultOddsSource:"theoretical-fair-gross",odds:Object.entries(evidence).map(([option,v])=>({option,rawOdds:v.raw,settlementOdds:v.settlementOdds,status:r.game==="fc3d"?"竞品商业赔率对照，不用于标准赔率":v.status,sourceFile:r.game==="fc3d"?fc3dVideoFile:videoFile,sourceSeconds:v.seconds})),
       oddsStatus:Object.keys(evidence).length ? (r.game==="fc3d"?"已完整录入在线配置":"已录入可见项；其余为空") : "未确认",productionEnabled:false};
   }).filter(r=>game==="all"||r.game===game);
@@ -50,13 +52,14 @@ export function SeedTable({rows,game}:{rows:Seed[];game:string}) {
   const records = exportRecords(rows,game);
   function download(format:"json"|"csv"|"plays"|"standard") {
     try {
-      const content=format==="json" ? JSON.stringify({schemaVersion:"1.3.0",dataVersion:"2026-10-13",notes:["福彩3D标准盘共31个玩法","玩法说明采用老竞品格式并按福彩3D规则改写","标准赔率按等概率开奖结果计算，含本金、无抽水；竞品赔率仅作证据对照","界面截断两位，研发数据保留六位及精确分数","按code幂等更新；生产默认禁用"],plays:records},null,2) : seedCsv(records);
+      const content=format==="json" ? JSON.stringify({schemaVersion:"1.4.0",dataVersion:"2026-10-16",notes:["福彩3D标准盘共31个玩法","一级类型为三星、二星、定位胆、不定胆、龙虎；前二和后二属于二星下的二级方案","三星通选一等奖460、二等奖20，两个奖级互斥","玩法说明采用老竞品格式并按福彩3D规则改写","标准赔率按等概率开奖结果计算，含本金、无抽水；竞品赔率仅作证据对照","界面截断两位，研发数据保留六位及精确分数","按code幂等更新；生产默认禁用"],limits:standardLimits,plays:records},null,2) : seedCsv(records);
       const url=URL.createObjectURL(new Blob([format==="plays" ? playCsv(records) : format==="standard" ? standardCsv(records) : content],{type:format==="json"?"application/json;charset=utf-8":"text/csv;charset=utf-8"}));
       const link=document.createElement("a");link.href=url;link.download=`lottery-${format==="plays"?"plays":format==="standard"?"standard-odds":"seed"}-${game}-20261013.${format==="json"?"json":"csv"}`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
       setMessage(`已生成 ${records.length} 个玩法的 ${format.toUpperCase()} 文件`);
     } catch {setMessage("导出失败，请重试或联系研发读取种子数据源。");}
   }
   return <section className="admin-card seed-card"><h2>玩法与赔率初始化数据</h2>
+    <section className="spec-card"><h2>玩法下注限额（所有玩法统一）</h2><table><tbody>{limitRows.map(([name,value])=><tr key={name}><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody></table><p className="admin-note">以上数值沿用标准盘统一模板；数值 0 表示该项不设置额外限制。</p></section>
     <div className="seed-export"><button onClick={()=>download("json")}>导出 JSON（研发）</button><button onClick={()=>download("plays")}>导出 CSV（玩法字段）</button><button onClick={()=>download("csv")}>导出 CSV（逐项赔率）</button><span>{records.length} 个玩法 · {records.reduce((n,r)=>n+r.odds.length,0)} 条可见赔率</span></div>
     <p role="status" className="admin-note seed-feedback">{message}</p>
     <p className="admin-note">福彩3D共31个玩法；标准赔率按等概率结果计算，含本金、无抽水。界面直接截断两位，研发导出保留六位与精确分数；竞品商业赔率仅作对照。生产启用状态默认关闭。</p>

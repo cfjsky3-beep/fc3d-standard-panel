@@ -85,8 +85,8 @@ export function standardOdds(game:string,name:string):StandardAward[] {
       {...fairAward(`${digit}·组六`,1000,6,"包胆拆分36注组六；含本金、无抽水"),betCount:36},
     ]).flat();
     if(name==="三星通选复式" || name==="三星通选单式") return [
-      {award:"三星奖",total:1000,wins:1,exact:"460/1",value:"460.000000",formula:"竞品固定奖级分配",note:"固定号码三位全中；460/20奖级组合整体理论返奖率为100%，奖级分配规则待业务最终确认"},
-      {award:"二星奖",total:1000,wins:27,exact:"20/1",value:"20.000000",formula:"竞品固定奖级分配",note:"固定号码恰好两个位置命中；与三星奖互斥；奖级分配规则待业务最终确认"},
+      {award:"三星奖",total:1000,wins:1,exact:"460/1",value:"460.000000",formula:"已确认固定奖级分配",note:"固定号码三位全中；与二星奖互斥；460/20奖级组合整体理论返奖率为100%"},
+      {award:"二星奖",total:1000,wins:27,exact:"20/1",value:"20.000000",formula:"已确认固定奖级分配",note:"固定号码恰好两个位置按位相同；与三星奖互斥；口径与排列3/5一致"},
     ];
     if(/^(前二|后二)直选和值$/.test(name)) return Array.from({length:19},(_,sum)=>({...fairAward(String(sum),100,1,"选择和值后拆分为对应有序二位直选基础注"),betCount:twoDigitSumCombinationCount(sum)}));
     if(/^(前二|后二)直选跨度$/.test(name)) return Array.from({length:10},(_,span)=>({...fairAward(String(span),100,1,"选择跨度后拆分为对应有序二位直选基础注"),betCount:twoDigitSpanCombinationCount(span)}));
