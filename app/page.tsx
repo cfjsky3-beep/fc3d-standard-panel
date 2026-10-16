@@ -72,12 +72,14 @@ export function displayPayoutAmount(value: number) {
 export function parseSingleEntries(menu: string, value: string) {
   const length = menu.startsWith("五星") ? 5 : /^(前四|后四)/.test(menu) ? 4 : /^(前二|后二)/.test(menu) ? 2 : 3;
   const entries = value.split(/[\s,，;；|]+/).map(item => item.trim()).filter(Boolean);
-  return [...new Set(entries.filter(item => {
+  const validEntries = entries.filter(item => {
     if (!new RegExp(`^\\d{${length}}$`).test(item)) return false;
     if (menu.includes("组选单式") && length === 2) return item[0] !== item[1];
     if (menu === "三星混合组选") return new Set(item).size > 1;
     return true;
-  }))];
+  });
+  const ignoresOrder = menu.includes("组选单式") || menu === "三星混合组选";
+  return [...new Set(validEntries.map(item => ignoresOrder ? [...item].sort().join("") : item))];
 }
 
 function combinationCount(total: number, selected: number) {
@@ -626,8 +628,9 @@ export default function Home() {
 
         <section className="db-content">
           <div className="odds-line"><b>赔率：</b><strong>{panel === "standard" ? displayOdds(game, menu) : "1.98"}</strong><button aria-label="查看玩法说明" onClick={() => setPlayHelpOpen(true)}>ⓘ</button></div>
-          {menu.includes("单式") ? <section className="single-entry">
+          {menu.includes("单式") || menu === "三星混合组选" ? <section className="single-entry">
             <p>注：每注号码用空格[ ]、逗号[,]或者分号[;]隔开</p>
+            <p>重复投注只计1注：直选、通选按完整号码及顺序判断；组选、混合组选不计顺序，同一数字组合按同一注去重。例如直选输入“345 345 354”计2注；混合组选输入“112 121 211 345 543”计2注（112、345）。</p>
             <textarea aria-label={`${menu}号码输入`} inputMode="numeric" value={singleInput} onChange={event => updateSingleInput(event.target.value)} placeholder="请输入投注号码" />
           </section> : rows.map((row) => <section className="db-row" key={row.title}>
             <div className="row-title"><div><h2>{row.title}</h2>{row.hint && <p>{row.hint}</p>}</div>{row.helpers && <div>{["全","大","小","单","双","清"].map((a) => <button key={a} onClick={() => quick(row.title, a)}>{a}</button>)}</div>}</div>
@@ -703,7 +706,7 @@ export default function Home() {
           </>}
           {specTab === "interaction" && <>
             <section className="spec-card"><h2>核心交互</h2><ol><li>点击当前彩种后的三角：弹出“快捷菜单”，点击彩票卡片后切换到对应彩种并重置当前选号。</li><li>点击“双面盘/标准盘”：切换盘口，清空上一盘口的选号，避免投注口径混用。</li><li>点击宫格图标：打开全部玩法；父级玩法固定在右侧，点击父级后在左侧展示对应子玩法。</li><li>点击具体子玩法后关闭菜单、刷新投注区并更新顶部快捷玩法。</li><li>点击奖金/赔率后的信息图标：从底部呼出当前玩法说明、投注示例和示例号码。</li><li>点击投注项：在默认/选中间切换，同步刷新注数、金额、购彩篮角标和投注按钮状态。</li><li>点击“购彩篮”：有注单时呼出连续铺满的购物车底板；无注单时按钮禁用，不呼出底板。</li><li>删除最后一组注单或清空全部注单后，自动关闭购物车底板。</li><li>点击“追号”：有有效注单时从手机底部呼出追号菜单；无注单时按钮禁用。</li><li>追号支持选择起始期号、追号期数、起始倍数、每隔 N 期增加 N 倍及中奖停追；参数变化后实时重算每期金额与总投注。</li><li>追号详情默认展开，可收起；详情表随期数生成连续期号，并固定显示底部汇总与“确认追号”。</li><li>点击购物车币种箭头：二次呼出货币选择底板，可在 CNY 与 USDT 间切换。</li><li>点击“投注”：呼出二次确认底板，核对彩种、期号、玩法、选号、注数与合计金额。</li><li>购彩篮为空时不显示红点；有注单时显示数字角标。</li><li>点击全/大/小/单/双：批量选号；“清”仅清除当前行。</li></ol></section>
-            <section className="spec-card"><h2>福彩3D特殊交互（测试重点）</h2><ul><li>三星直选复式、前二直选复式、后二直选复式必须按各位置所选号码数相乘计注；缺少任一必要位置时不成注。</li><li>三星组选三复式至少选择2个不同号码，每组号码形成2注；三星组选六复式至少选择3个不同号码，每3个号码形成1注。</li><li>前二、后二组选复式至少选择2个不同号码，每2个号码形成1注；组选包胆每期只能选择1个包胆号码，选择新号码时自动替换旧号码。</li><li>单式和混合组选只有输入位数、号码形态合法时才形成有效注单；重复号码按同一注去重。</li><li>三星通选包含一等奖和二等奖两个奖级；混合组选、组选和值、组选包胆分别按组三和组六奖级展示赔率范围。</li><li>定位胆按百位、十位、个位分别选号；三星一码不定胆和二码不定胆不限位置，二码必须选择至少2个不同号码。</li><li>龙虎和只比较百十、百个、十个三组位置；无抽水赔率为龙/虎2.22、和10.00，各位置分别成注且跨位置可同时中奖。</li><li>全部31个玩法和赔率读取福彩3D独立配置，不复用时时彩或排列3/5目录。</li></ul></section>
+            <section className="spec-card"><h2>福彩3D特殊交互（测试重点）</h2><ul><li>三星直选复式、前二直选复式、后二直选复式必须按各位置所选号码数相乘计注；缺少任一必要位置时不成注。</li><li>三星组选三复式至少选择2个不同号码，每组号码形成2注；三星组选六复式至少选择3个不同号码，每3个号码形成1注。</li><li>前二、后二组选复式至少选择2个不同号码，每2个号码形成1注；组选包胆每期只能选择1个包胆号码，选择新号码时自动替换旧号码。</li><li><b>单式与混合组选重复投注：</b>只有输入位数和号码形态合法时才形成有效注单，重复投注只计1注。直选、通选按完整号码及顺序判断重复，例如输入“345 345 354”计2注；组选、混合组选不计顺序，同一数字组合按同一注去重，例如输入“112 121 211 345 543”计2注（112、345）。</li><li>三星通选包含一等奖和二等奖两个奖级；混合组选、组选和值、组选包胆分别按组三和组六奖级展示赔率范围。</li><li>定位胆按百位、十位、个位分别选号；三星一码不定胆和二码不定胆不限位置，二码必须选择至少2个不同号码。</li><li>龙虎和只比较百十、百个、十个三组位置；无抽水赔率为龙/虎2.22、和10.00，各位置分别成注且跨位置可同时中奖。</li><li>全部31个玩法和赔率读取福彩3D独立配置，不复用时时彩或排列3/5目录。</li></ul></section>
             <section className="spec-card"><h2>投注栏规则</h2><ul><li>无有效选号时，“投注”置灰，“追号”可见但不执行。</li><li>默认预设倍数为 5/10/20/50，可在“编辑预设倍数”中修改；点击 ×2 对当前倍数翻倍。</li><li>赔率使用普通标准文字展示；多赔率玩法显示最小值～最大值。</li><li>点击赔率后的信息图标，从底部弹出玩法说明、投注示例和示例号码。</li><li>点击清空后清除当前页选号；购彩篮角标为已入篮注单数。</li></ul></section>
           </>}
           {specTab === "fields" && <>
