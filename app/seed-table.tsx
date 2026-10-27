@@ -18,14 +18,17 @@ export function playFields(r:Seed) {
 }
 // Name-based keys are independent of display order. Changing a name requires an explicit migration.
 export function seedCode(game:string,name:string) { return `${game.toUpperCase()}_${Array.from(name).map(c=>c.codePointAt(0)!.toString(16)).join("_")}`; }
+export function truncateOdds(value:string|null,rate=1) { if(value==null || !Number.isFinite(Number(value))) return null; return (Math.trunc((Number(value)*rate+Number.EPSILON)*100)/100).toFixed(2); }
+export function reductionPercent(maximum:string|null,current:string|null) { const max=Number(truncateOdds(maximum)),now=Number(current); if(!Number.isFinite(max)||!Number.isFinite(now)||max<=0) return null; return (Math.trunc((((max-now)/max)*100+Number.EPSILON)*100)/100).toFixed(2); }
 export function exportRecords(rows:Seed[],game:string) {
   return rows.map((r,index)=>{
     const evidence = r.game === "ssc" ? observedOdds[r.name] ?? {} : r.game === "fc3d" ? Object.fromEntries(Object.entries(fc3dObservedOdds[r.name] ?? {}).map(([option,raw])=>[option,{raw,settlementOdds:raw,status:"竞品在线配置已确认",seconds:null}])) : {};
     const standards = standardOdds(r.game,r.name);
+    const pricedStandards = standards.map(o=>{const currentOdds=truncateOdds(o.value,0.98);return {...o,reductionPercent:reductionPercent(o.value,currentOdds),currentOdds};});
     const uniform = new Set(standards.map(o=>o.value));
     return {code:seedCode(r.game,r.name),game:r.game,panel:"standard",parent:r.level1 ?? r.group,name:r.name,recommendedOrder:index+1,...playFields(r),
       description:r.text,betExample:r.bet,resultExample:r.sample,ruleStatus:"规则与数学已核对",source:r.game==="ssc" ? (r.name==="龙虎和" ? "用户提供DB截图" : "老系统录像整理") : r.game==="fc3d" ? "开云彩票福彩3D在线配置；老竞品说明格式" : "既有原型待核对",
-      defaultOdds:uniform.size===1 ? standards[0].value : null,standardOdds:standards,defaultOddsSource:"theoretical-fair-gross",odds:Object.entries(evidence).map(([option,v])=>({option,rawOdds:v.raw,settlementOdds:v.settlementOdds,status:r.game==="fc3d"?"竞品商业赔率对照，不用于标准赔率":v.status,sourceFile:r.game==="fc3d"?fc3dVideoFile:videoFile,sourceSeconds:v.seconds})),
+      defaultOdds:uniform.size===1 ? standards[0].value : null,standardOdds:pricedStandards,defaultOddsSource:"theoretical-fair-gross",odds:Object.entries(evidence).map(([option,v])=>({option,rawOdds:v.raw,settlementOdds:v.settlementOdds,status:r.game==="fc3d"?"竞品商业赔率对照，不用于标准赔率":v.status,sourceFile:r.game==="fc3d"?fc3dVideoFile:videoFile,sourceSeconds:v.seconds})),
       oddsStatus:Object.keys(evidence).length ? (r.game==="fc3d"?"已完整录入在线配置":"已录入可见项；其余为空") : "未确认",productionEnabled:false};
   }).filter(r=>game==="all"||r.game===game);
 }
@@ -43,8 +46,8 @@ export function playCsv(records:ReturnType<typeof exportRecords>) {
   return "\uFEFF"+[playHeaders,...records.map(r=>[r.type,r.scheme,r.play,r.shortName,r.introduction,r.description,r.betExample,r.resultExample,r.recommendedOrder])].map(row=>row.map(csvCell).join(",")).join("\r\n");
 }
 export function standardCsv(records:ReturnType<typeof exportRecords>) {
-  const lines:unknown[][]=[["彩种","玩法","奖项","投注注数","最高赔率","精确分数","总组合数","中奖组合数","公式","计算假设"]];
-  for(const r of records) for(const o of r.standardOdds) lines.push([r.game==="ssc"?"时时彩":r.game==="fc3d"?"福彩3D":"快三",`${r.type}-${r.scheme}-${r.play}`,o.award,o.betCount??1,o.value,o.exact,o.total,o.wins,o.formula,o.note]);
+  const lines:unknown[][]=[["彩种","玩法","奖项","投注注数","最高赔率","降低赔率（%）","当前赔率","精确分数","总组合数","中奖组合数","公式","计算假设"]];
+  for(const r of records) for(const o of r.standardOdds) lines.push([r.game==="ssc"?"时时彩":r.game==="fc3d"?"福彩3D":"快三",`${r.type}-${r.scheme}-${r.play}`,o.award,o.betCount??1,truncateOdds(o.value),o.reductionPercent,o.currentOdds,o.exact,o.total,o.wins,o.formula,o.note]);
   return "\uFEFF"+lines.map(row=>row.map(csvCell).join(",")).join("\r\n");
 }
 export function SeedTable({rows,game}:{rows:Seed[];game:string}) {
@@ -76,11 +79,11 @@ export function SeedTable({rows,game}:{rows:Seed[];game:string}) {
       </tr>)}</tbody>
     </table></div></div>)}
     <h2>2、玩法赔率 · 理论标准赔率</h2>
-    <p className="admin-note">标准赔率＝总等概率结果数÷中奖结果数。多奖级逐奖项保存；顶部区间与逐项赔率读取同一份数据。</p>
+    <p className="admin-note">降低赔率（%）＝（最高赔率 − 当前赔率）÷ 最高赔率 × 100，按每个奖项实际赔率反算。赔率与百分比均保留两位并直接截断，不四舍五入。</p>
     <div className="seed-export"><button onClick={()=>download("standard")}>导出 CSV（标准赔率与公式）</button></div>
     {["ssc","k3","fc3d"].filter(g=>records.some(r=>r.game===g)).map(g=><div key={g}><h2>总后台：{g==="ssc"?"时时彩":g==="fc3d"?"福彩3D":"快三"}标准盘玩法赔率</h2>
-      <div className="table-scroll" tabIndex={0} role="region" aria-label="理论标准赔率表"><table className="standard-odds-table"><colgroup><col style={{width:"43%"}}/><col style={{width:"20%"}}/><col style={{width:"17%"}}/><col style={{width:"20%"}}/></colgroup><thead><tr><th scope="col">玩法</th><th scope="col">奖项</th><th scope="col">投注注数</th><th scope="col">最高赔率</th></tr></thead><tbody>
-      {records.filter(r=>r.game===g).flatMap(r=>r.standardOdds.map((o,i)=><tr key={`${r.code}-${i}`}><td>{r.type}-{r.scheme}-{r.play}</td><td>{o.award}</td><td>{o.betCount??1}</td><td><b>{displayStandard(o.value)}</b><details><summary>计算说明</summary><small>{o.formula && `${o.formula} = ${o.value}；`}{o.note}</small></details></td></tr>))}
+      <div className="table-scroll" tabIndex={0} role="region" aria-label="理论标准赔率表"><table className="standard-odds-table"><colgroup><col style={{width:"34%"}}/><col style={{width:"16%"}}/><col style={{width:"12%"}}/><col style={{width:"14%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th scope="col">玩法</th><th scope="col">奖项</th><th scope="col">投注注数</th><th scope="col">最高赔率</th><th scope="col">降低赔率（%）</th><th scope="col">当前赔率</th></tr></thead><tbody>
+      {records.filter(r=>r.game===g).flatMap(r=>r.standardOdds.map((o,i)=><tr key={`${r.code}-${i}`}><td>{r.type}-{r.scheme}-{r.play}</td><td>{o.award}</td><td>{o.betCount??1}</td><td><b>{displayStandard(o.value)}</b><details><summary>计算说明</summary><small>{o.formula && `${o.formula} = ${o.value}；`}{o.note}</small></details></td><td>{o.reductionPercent??"—"}</td><td><b>{o.currentOdds??"—"}</b></td></tr>))}
       </tbody></table></div></div>)}
   </section>;
 }
